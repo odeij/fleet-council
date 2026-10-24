@@ -10,6 +10,11 @@ frontier models into a council when a problem is hard.
 - A learned list scheduler that predicts each task on each GPU and gets better after every run.
 - A council where Claude and OpenAI's Codex answer independently and Claude chairs the synthesis.
 
+![fleet-council architecture](docs/architecture.svg)
+
+<details>
+<summary>Text version of the diagram (mermaid)</summary>
+
 ```mermaid
 flowchart LR
     subgraph Brain["MacBook (macOS) · one Claude Code session"]
@@ -38,7 +43,23 @@ flowchart LR
     GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & C & S & N
 ```
 
-![Fleet dashboard (demo mode)](docs/dashboard.png)
+</details>
+
+## Dashboard
+
+Live GPUs, utilization history, jobs, processes and log tails for every machine, read-only. Light and dark themes,
+works on a phone. Screenshots are from `python3 gui/server.py --demo` (simulated fleet).
+
+| Dark | Light |
+|---|---|
+| ![Fleet dashboard, dark theme](docs/dashboard.png) | ![Fleet dashboard, light theme](docs/dashboard-light.png) |
+
+<details>
+<summary>Phone layout</summary>
+
+<img src="docs/dashboard-mobile.png" alt="Fleet dashboard on a phone" width="320">
+
+</details>
 
 ## Why
 
