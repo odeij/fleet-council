@@ -1,0 +1,28 @@
+# Agent Council members (my setup): every member is a CLI that takes the prompt as its last argument.
+# Claude Code chairs (role: auto) and also answers as a peer member.
+council:
+  members:
+    - name: codex
+      # OpenAI Codex CLI, pinned to a specific model. Behind a TLS-inspecting proxy, prefix with
+      # env SSL_CERT_FILE=/path/to/ca-bundle.pem
+      command: "codex exec --skip-git-repo-check -m <model>"
+      emoji: "🤖"
+      color: "BLUE"
+
+    - name: claude
+      command: "claude -p"
+      emoji: "🧠"
+      color: "CYAN"
+
+    # - name: gemini
+    #   command: "gemini"
+    #   emoji: "💎"
+    #   color: "GREEN"
+
+  chairman:
+    role: "auto"          # the host agent (Claude Code) synthesizes
+    description: "Synthesizes all opinions and provides final recommendation"
+
+  settings:
+    timeout: 120                          # seconds per member (0 = no limit)
+    exclude_chairman_from_members: false  # Claude answers as a peer AND chairs

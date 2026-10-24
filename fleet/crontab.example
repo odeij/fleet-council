@@ -1,0 +1,4 @@
+# On the hub (crontab -e): GPU telemetry every minute, network probe hourly, learning daily
+* * * * * /usr/bin/python3 $HOME/fleet/lib/sample.py >> $HOME/fleet/experience/cron.log 2>&1
+17 * * * * /usr/bin/python3 $HOME/fleet/lib/sample.py --net >> $HOME/fleet/experience/cron.log 2>&1
+5 4 * * * $HOME/fleet/bin/rig learn >> $HOME/fleet/experience/cron.log 2>&1

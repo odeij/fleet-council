@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet Monitor</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a; --fg:#e6e8ee; --dim:#9aa3b2; --ok:#3ddc84; --warn:#f5c542; --bad:#ff5c5c; --acc:#5aa9ff; --mono:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:2; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .meta { color:var(--dim); font-size:12px; }
+  header button { margin-left:auto; background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 10px; cursor:pointer; }
+  header button:hover { border-color:var(--acc); }
+  .layout { display:grid; grid-template-columns:300px 1fr; min-height:calc(100vh - 49px); }
+  aside { border-right:1px solid var(--line); background:var(--panel); padding:12px; overflow:auto; }
+  main { padding:16px 20px; overflow:auto; }
+  .rig { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; cursor:pointer; background:var(--panel2); }
+  .rig:hover { border-color:var(--acc); }
+  .rig.sel { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc) inset; }
+  .rig .top { display:flex; align-items:center; gap:8px; font-weight:600; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--dim); display:inline-block; }
+  .dot.on { background:var(--ok); } .dot.off { background:var(--bad); } .dot.stale { background:var(--warn); }
+  .rig .sub { color:var(--dim); font-size:12px; margin-top:2px; }
+  .bar { height:8px; background:#2b3140; border-radius:4px; overflow:hidden; margin-top:4px; }
+  .bar > i { display:block; height:100%; background:var(--acc); }
+  .bar > i.mem { background:#8f7cff; }
+  .gpuline { display:flex; align-items:center; gap:8px; font-size:12px; margin-top:6px; }
+  .gpuline .bar { flex:1; margin:0; }
+  .gpuline .lab { width:46px; color:var(--dim); }
+  .gpuline .val { width:88px; text-align:right; font-family:var(--mono); color:var(--dim); }
+  .run { font-size:12px; margin-top:6px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  h2 { font-size:15px; margin:18px 0 8px; color:var(--fg); }
+  h2:first-child { margin-top:0; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:500; font-size:12px; }
+  td.num { font-family:var(--mono); text-align:right; white-space:nowrap; }
+  .gpu { display:grid; grid-template-columns:110px 1fr 1fr 60px; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .gpu:last-child { border-bottom:0; }
+  .gpu .lbl { font-size:11px; color:var(--dim); }
+  pre { margin:0; font-family:var(--mono); font-size:12px; white-space:pre-wrap; word-break:break-all; color:#cfd5e1; }
+  .pill { display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; border:1px solid var(--line); color:var(--dim); margin-right:6px; }
+  .pill.training { color:var(--acc); border-color:var(--acc); } .pill.trained { color:var(--ok); border-color:var(--ok); }
+  .pill.interrupted, .pill.failed { color:var(--bad); border-color:var(--bad); } .pill.close-out, .pill.starting, .pill.queued { color:var(--warn); border-color:var(--warn); }
+  .logs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .logs button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; font-family:var(--mono); }
+  .logs button.sel { border-color:var(--acc); color:var(--acc); }
+  .logbox { background:#0b0d11; border:1px solid var(--line); border-radius:8px; padding:10px; max-height:420px; overflow:auto; }
+  .muted { color:var(--dim); } .err { color:var(--bad); }
+  .overview .row { display:grid; grid-template-columns:120px 1fr; gap:8px; padding:4px 0; border-bottom:1px solid var(--line); }
+  .kv { display:flex; gap:18px; flex-wrap:wrap; color:var(--dim); font-size:12px; margin-bottom:8px; }
+  .kv b { color:var(--fg); font-weight:500; }
+  label.chk { font-size:12px; color:var(--dim); margin-left:10px; }
+  @media (max-width: 800px) { .layout { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fleet Monitor</h1>
+  <span class="meta" id="meta">connecting…</span>
+  <button onclick="refreshNow()">Refresh now</button>
+</header>
+<div class="layout">
+  <aside id="side"></aside>
+  <main id="main"><div class="muted">Loading…</div></main>
+</div>
+<script>
+let state = null, selected = null, logSel = null, logTimer = null, autoLog = true;
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function ago(epoch) { if (!epoch) return '–'; const s = Math.max(0, Math.floor(Date.now()/1000 - epoch)); return s < 60 ? s + ' s ago' : s < 3600 ? Math.floor(s/60) + ' min ago' : (s/3600).toFixed(1) + ' h ago'; }
+function fmtMB(m) { return m >= 1024 ? (m/1024).toFixed(1) + ' GB' : m + ' MB'; }
+
+function statusOf(r) {
+  if (!r) return 'off';
+  if (!r.online) return 'off';
+  if (Date.now()/1000 - r.fetched > 3 * (state.poll_interval || 20) + 30) return 'stale';
+  return 'on';
+}
+function runningLine(r) {
+  const s = r && r.snapshot; if (!s) return r && r.error ? 'offline: ' + r.error : 'offline';
+  const parts = [];
+  for (const j of s.fleet_jobs || []) if (j.state === 'running') parts.push('job ' + j.job);
+  for (const p of s.processes || []) if (p.name.startsWith('dispatcher')) parts.push(p.name);
+  if (!parts.length) parts.push(s.processes && s.processes.length ? s.processes[0].name : 'idle');
+  return parts.join(' · ');
+}
+
+function renderSide() {
+  const side = document.getElementById('side');
+  const names = state.hosts.length ? state.hosts : Object.keys(state.rigs);
+  side.innerHTML = `<div class="rig ${selected === null ? 'sel' : ''}" onclick="select(null)"><div class="top"><span class="dot on"></span>Fleet overview</div><div class="sub">${names.length} rigs in ~/fleet/hosts.conf</div></div>` +
+    names.map(n => {
+      const r = state.rigs[n]; const st = statusOf(r); const s = r && r.snapshot;
+      const gpus = (s && s.gpus || []).map(g => `<div class="gpuline"><span class="lab">GPU${g.index}</span><div class="bar"><i style="width:${g.util}%"></i></div><span class="val">${g.util}% ${fmtMB(g.mem_used)}</span></div>`).join('');
+      return `<div class="rig ${selected === n ? 'sel' : ''}" onclick="select('${n}')">
+        <div class="top"><span class="dot ${st}"></span>${esc(n)} <span class="sub" style="margin-left:auto">${r ? (r.online ? ago(r.fetched) : 'offline') : 'no data'}</span></div>
+        ${gpus || '<div class="sub">no GPU info</div>'}
+        <div class="run" title="${esc(runningLine(r))}">${esc(runningLine(r))}</div></div>`;
+    }).join('');
+}
+
+function renderOverview() {
+  const names = state.hosts.length ? state.hosts : Object.keys(state.rigs);
+  let gpus = 0, busy = 0, memU = 0, memT = 0, jobs = [];
+  for (const n of names) { const r = state.rigs[n]; if (!r || !r.snapshot) continue;
+    for (const g of r.snapshot.gpus || []) { gpus++; busy += g.util > 10; memU += g.mem_used; memT += g.mem_total; }
+    jobs = jobs.concat((r.snapshot.fleet_jobs || []).filter(j => j.state === 'running').map(j => ({...j, rig:n}))); }
+  return `<h2>Fleet</h2><div class="card"><div class="kv"><span><b>${names.length}</b> rigs</span><span><b>${gpus}</b> GPUs</span><span><b>${busy}</b> busy</span><span>memory <b>${fmtMB(memU)} / ${fmtMB(memT)}</b></span></div></div>
+    <h2>Running jobs</h2><div class="card">${jobs.length ? '<table><tr><th>Rig</th><th>Job</th><th>Last line</th></tr>' + jobs.map(j => `<tr><td>${esc(j.rig)}</td><td>${esc(j.job)}</td><td><pre>${esc(j.last)}</pre></td></tr>`).join('') + '</table>' : '<div class="muted">none</div>'}</div>
+    <h2>Rigs</h2><div class="card overview">${names.map(n => { const r = state.rigs[n]; return `<div class="row"><b>${esc(n)}</b><span>${esc(runningLine(r))}</span></div>`; }).join('')}</div>`;
+}
+
+function renderRig(n) {
+  const r = state.rigs[n]; if (!r) return `<div class="muted">no data for ${esc(n)} yet</div>`;
+  const s = r.snapshot; const st = statusOf(r);
+  let html = `<div class="kv"><span><span class="dot ${st}"></span> <b>${esc(n)}</b> (${esc(r.alias)}${r.hub ? ', hub' : ''})</span><span>polled <b>${ago(r.fetched)}</b>, round trip ${r.rtt_s} s</span>${s ? `<span>rig time <b>${esc(s.time)}</b></span><span>load <b>${esc((s.load||[]).join(' '))}</b></span><span>disk free <b>${esc(s.disk_free)}</b></span>` : ''}${r.online ? '' : `<span class="err">offline: ${esc(r.error || '')}${r.last_online ? ' (last snapshot ' + ago(r.last_online) + ')' : ''}</span>`}</div>`;
+  if (!s) return html;
+  html += `<h2>GPUs</h2><div class="card">` + ((s.gpus||[]).map(g => `<div class="gpu"><div>GPU${g.index} <span class="lbl">${esc(g.name)}</span></div>
+      <div><div class="lbl">utilisation ${g.util}%</div><div class="bar"><i style="width:${g.util}%"></i></div></div>
+      <div><div class="lbl">memory ${fmtMB(g.mem_used)} / ${fmtMB(g.mem_total)}</div><div class="bar"><i class="mem" style="width:${100*g.mem_used/Math.max(1,g.mem_total)}%"></i></div></div>
+      <div class="num">${g.temp}°C</div></div>`).join('') || '<div class="muted">no GPU info</div>') + `</div>`;
+  html += `<h2>Processes</h2><div class="card">` + ((s.processes||[]).length ? '<table><tr><th>What</th><th>Up</th><th>Procs</th><th>CPU</th><th>RSS</th><th>PID</th></tr>' + s.processes.map(p => `<tr><td>${esc(p.name)}</td><td class="num">${esc(p.etime)}</td><td class="num">${p.n}</td><td class="num">${p.cpu.toFixed(0)}%</td><td class="num">${fmtMB(Math.round(p.rss_mb))}</td><td class="num">${p.pid}</td></tr>`).join('') + '</table>' : '<div class="muted">idle</div>') + `</div>`;
+  if (s.fleet_jobs && s.fleet_jobs.length) html += `<h2>Fleet jobs (~/rig-runs)</h2><div class="card"><table><tr><th>Job</th><th>State</th><th>Last line</th><th>Touched</th></tr>` + s.fleet_jobs.map(j => `<tr><td>${esc(j.job)}</td><td>${esc(j.state)}</td><td><pre>${esc(j.last)}</pre></td><td class="num">${ago(Date.now()/1000 - j.age_s)}</td></tr>`).join('') + `</table></div>`;
+  html += `<h2>Logs <label class="chk"><input type="checkbox" ${autoLog ? 'checked' : ''} onchange="autoLog=this.checked; scheduleLog()"> auto-refresh every 10 s</label></h2><div class="card"><div class="logs">` + (s.logs||[]).map(l => `<button class="${logSel === l.path ? 'sel' : ''}" onclick="showLog('${esc(l.path)}')" title="${esc(l.path)} · ${ago(l.mtime)} · ${fmtMB(Math.round(l.size/1024/1024*10)/10)}">${esc(l.name)}</button>`).join('') + `</div><div class="logbox" id="logbox"><span class="muted">${logSel ? 'loading…' : 'pick a log to tail it (last 80 lines)'}</span></div></div>`;
+  return html;
+}
+
+function render() {
+  if (!state) return;
+  document.getElementById('meta').textContent = `last poll ${ago(state.last_poll)} · every ${state.poll_interval} s · ${state.hosts.length} rigs`;
+  renderSide();
+  const main = document.getElementById('main');
+  const y = main.scrollTop;
+  main.innerHTML = selected === null ? renderOverview() : renderRig(selected);
+  main.scrollTop = y;
+  if (selected !== null && logSel) loadLog();
+}
+
+function select(n) { selected = n; logSel = null; clearTimeout(logTimer); render(); }
+async function showLog(path) { logSel = path; render(); }
+async function loadLog() {
+  const box = document.getElementById('logbox'); if (!box || !logSel) return;
+  try {
+    const r = await fetch(`/api/log?rig=${encodeURIComponent(selected)}&path=${encodeURIComponent(logSel)}&n=80`);
+    const j = await r.json();
+    box.innerHTML = `<div class="muted" style="margin-bottom:6px">${esc(logSel)} · fetched ${ago(j.fetched)}</div><pre>${esc(j.text || j.error || '')}</pre>`;
+    box.scrollTop = box.scrollHeight;
+  } catch (e) { box.innerHTML = `<span class="err">${esc(e)}</span>`; }
+  scheduleLog();
+}
+function scheduleLog() { clearTimeout(logTimer); if (autoLog && logSel) logTimer = setTimeout(loadLog, 10000); }
+
+async function tick() {
+  try { const r = await fetch('/api/state'); state = await r.json(); render(); }
+  catch (e) { document.getElementById('meta').textContent = 'server unreachable: ' + e; }
+}
+async function refreshNow() { await fetch('/api/refresh'); setTimeout(tick, 4000); setTimeout(tick, 12000); }
+tick(); setInterval(tick, 10000);
+</script>
+</body>
+</html>

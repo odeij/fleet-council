@@ -1,0 +1,5 @@
+# name        ssh-alias   gpu indices (one dispatch lane per GPU; default 0)
+# On the hub, the hub itself is "local". On a controller (laptop), every host is remote: use its ssh alias.
+hub           local       0
+gpu-box-a     gpu-box-a   0,1
+gpu-box-b     gpu-box-b   0

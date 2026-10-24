@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# rig — run and watch GPU jobs across the fleet from the hub or from a controller such as a laptop.
+# Hosts: $RIG_HOME/hosts.conf.  Jobs run in tmux on the target host inside ~/env,
+# with everything under ~/rig-runs/<job>/ (code/, out/, stdout.log, exit_code).
+set -uo pipefail
+RIG_HOME="${RIG_HOME:-$HOME/fleet}"
+HOSTS_CONF="$RIG_HOME/hosts.conf"
+SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=8 -o LogLevel=ERROR)
+BIN='$HOME/rig-runs/.bin'
+# Controller mode: $RIG_HOME/controller.conf (only on a controller, never on the hub) sets RIG_HUB=<hub name>.
+# The hub keeps the telemetry cron, the experience store, the Ray head and /data; a controller pulls code and the learned
+# model from it (rig sync) and sends its dispatch records and LESSONS.md edits back.
+RIG_HUB=""; [ -f "$RIG_HOME/controller.conf" ] && . "$RIG_HOME/controller.conf"
+
+die() { echo "rig: $*" >&2; exit 1; }
+usage() { cat <<'USAGE'
+rig — fleet job control (hosts in ~/fleet/hosts.conf)
+
+  rig hosts                              reachability, GPUs, torch, disk for every host
+  rig gpu [host|all]                     live GPU utilisation / memory
+  rig setup [host|all]                   push agent scripts to ~/rig-runs/.bin (run once, and after edits)
+  rig exec <host|all> -- <cmd>           run a shell command inside ~/env on host(s)
+  rig push <host|all> <src> <dst>        rsync a file/dir to host (dst relative to remote ~)
+  rig pull <host> <src> <dst>            rsync from host (src relative to remote ~)
+  rig run <host|all> <job> [-g GPUS] [-d DIR] -- <cmd>
+                                         start <cmd> as job on host(s): DIR is rsynced to ~/rig-runs/<job>/code
+                                         and becomes the cwd; -g sets CUDA_VISIBLE_DEVICES; $RIG_OUT = ~/rig-runs/<job>/out
+  rig status [host|all]                  jobs + state on host(s)
+  rig logs <host> <job> [-n N] [-f]      show / follow a job's stdout.log
+  rig wait <host:job ...> | all <job>    block until the jobs finish; prints exit codes; non-zero if any failed
+  rig collect <host|all> <job> [DEST]    rsync out/ + logs back to DEST (default ~/fleet/results/<host>/<job>)
+  rig kill <host|all> <job>              stop a job
+  rig env-check [host|all]               compare ~/env with ~/fleet/requirements.txt
+  rig env-sync  [host|all] [REQS]        make ~/env match REQS (default ~/fleet/requirements.txt); runs as job 'envsync'
+
+  experience (what the fleet has learned; read before planning, update after running)
+  rig experience                         curated lessons + learned model summary + live GPU state
+  rig learn                              harvest finished jobs from all hosts, rebuild ~/fleet/experience/model.json + EXPERIENCE.md
+  rig sample [--net]                     take a telemetry snapshot now (cron does this every minute; --net hourly)
+  rig dispatch MANIFEST [--dry-run]      run a many-task manifest over all GPUs with the learned scheduler (~/fleet/lib/dispatch.py)
+
+  controller only (a machine with ~/fleet/controller.conf, e.g. a laptop; learn/sample/experience go via the hub)
+  rig sync                               pull code, the fleet skill and the learned experience from the hub
+USAGE
+}
+
+# ---------- host helpers ----------
+_alias() { awk -v n="$1" '$1==n {print $2}' "$HOSTS_CONF" | head -1; }
+_all_hosts() { awk '/^[^#]/ && NF>=2 {print $1}' "$HOSTS_CONF"; }
+_expand() { if [ "${1:-}" = all ]; then _all_hosts; else echo "$1"; fi; }
+_r() {  # _r host 'command'   (command runs on the host; $HOME etc. expand there)
+  local h="$1"; shift; local a; a=$(_alias "$h"); [ -n "$a" ] || die "unknown host '$h' (see $HOSTS_CONF)"
+  if [ "$a" = local ]; then bash -c "$*"; else ssh "${SSH_OPTS[@]}" "$a" "$*"; fi
+}
+_rt() {  # interactive variant (tty) for tail -f
+  local h="$1"; shift; local a; a=$(_alias "$h")
+  if [ "$a" = local ]; then bash -c "$*"; else ssh -t "${SSH_OPTS[@]}" "$a" "$*"; fi
+}
+_rsync_to() { local a; a=$(_alias "$1"); [ -n "$a" ] || die "unknown host '$1'"
+  if [ "$a" = local ]; then mkdir -p "$HOME/$3"; rsync -a "$2" "$HOME/$3"; else rsync -az -e "ssh ${SSH_OPTS[*]}" "$2" "$a:$3"; fi; }
+_rsync_from() { local a; a=$(_alias "$1"); [ -n "$a" ] || die "unknown host '$1'"; mkdir -p "$3"; shift 0
+  if [ "$a" = local ]; then rsync -a "${@:4}" "$HOME/$2" "$3"; else rsync -az -e "ssh ${SSH_OPTS[*]}" "${@:4}" "$a:$2" "$3"; fi; }
+_par() {  # _par "hosts..." 'command'  — run on hosts in parallel, print in order
+  local hosts="$1" cmd="$2" tmp; tmp=$(mktemp -d); local h
+  for h in $hosts; do ( _r "$h" "$cmd" > "$tmp/$h" 2>&1 || echo "  [rig: $h unreachable or command failed]" >> "$tmp/$h" ) & done; wait
+  for h in $hosts; do cat "$tmp/$h"; done; rm -rf "$tmp"
+}
+
+_hub_pull_exp() {  # refresh the controller's copy of the learned model; the hub is authoritative, LESSONS.md: newer file wins
+  local a f; a=$(_alias "$RIG_HUB"); mkdir -p "$RIG_HOME/experience"
+  for f in model.json EXPERIENCE.md README.md; do rsync -az -e "ssh ${SSH_OPTS[*]}" "$a:fleet/experience/$f" "$RIG_HOME/experience/" || { echo "rig: could not pull experience from $RIG_HUB, using the local copy" >&2; return 1; }; done
+  rsync -azu -e "ssh ${SSH_OPTS[*]}" "$a:fleet/experience/LESSONS.md" "$RIG_HOME/experience/"; }
+_hub_push_lessons() { [ -f "$RIG_HOME/experience/LESSONS.md" ] && rsync -azu -e "ssh ${SSH_OPTS[*]}" "$RIG_HOME/experience/LESSONS.md" "$(_alias "$RIG_HUB"):fleet/experience/"; }
+
+# ---------- commands ----------
+cmd_setup() { local h; for h in $(_expand "${1:-all}"); do
+  _r "$h" 'mkdir -p $HOME/rig-runs/.bin' && _rsync_to "$h" "$RIG_HOME/agent/" "rig-runs/.bin/" && _r "$h" 'chmod +x $HOME/rig-runs/.bin/*.sh; for t in tmux rsync; do command -v $t >/dev/null || echo "  WARNING: $t missing on $(hostname)"; done' && _r "$h" "bash $BIN/hostinfo.sh" || echo "  setup FAILED on $h"; done; }
+cmd_hosts() { _par "$(_all_hosts)" "bash $BIN/hostinfo.sh"; }
+cmd_gpu()   { _par "$(_expand "${1:-all}")" "bash $BIN/gpu.sh"; }
+cmd_status(){ _par "$(_expand "${1:-all}")" "bash $BIN/status.sh"; }
+cmd_exec()  { local tgt="$1"; shift; [ "${1:-}" = -- ] && shift; [ $# -gt 0 ] || die "exec: no command"
+  local cmd="source \$HOME/env/bin/activate 2>/dev/null; cd \$HOME; $*"
+  if [ "$tgt" = all ]; then local h tmp; tmp=$(mktemp -d); for h in $(_all_hosts); do ( _r "$h" "$cmd" 2>&1 | sed "s/^/[$h] /" > "$tmp/$h" ) & done; wait; for h in $(_all_hosts); do cat "$tmp/$h"; done; rm -rf "$tmp"
+  else _r "$tgt" "$cmd"; fi; }
+cmd_push()  { local h; for h in $(_expand "$1"); do _rsync_to "$h" "$2" "$3" && echo "pushed $2 -> $h:~/$3"; done; }
+cmd_pull()  { _rsync_from "$1" "$2" "$3" && echo "pulled $1:~/$2 -> $3"; }
+
+cmd_run() {
+  local tgt="$1" job="$2"; shift 2; local gpus="" dir=""
+  while [ $# -gt 0 ]; do case "$1" in -g) gpus="$2"; shift 2;; -d) dir="$2"; shift 2;; --) shift; break;; *) die "run: unexpected '$1' (put the command after --)";; esac; done
+  [ $# -gt 0 ] || die "run: no command after --"; local cmd="$*"
+  [[ "$job" =~ ^[A-Za-z0-9._-]+$ ]] || die "run: job name must be [A-Za-z0-9._-]"
+  [ -z "$dir" ] || [ -d "$dir" ] || die "run: -d '$dir' is not a directory"
+  local tmp; tmp=$(mktemp -d); printf '%s\n' "$cmd" > "$tmp/cmd.sh"
+  { echo "# generated by rig run"; [ -n "$gpus" ] && echo "export CUDA_VISIBLE_DEVICES=$gpus"; } > "$tmp/env.sh"
+  local h rc=0; for h in $(_expand "$tgt"); do
+    _r "$h" "mkdir -p \$HOME/rig-runs/$job/code \$HOME/rig-runs/$job/out" || { echo "  $h: unreachable"; rc=1; continue; }
+    [ -z "$dir" ] || _rsync_to "$h" "${dir%/}/" "rig-runs/$job/code/" || { echo "  $h: code sync failed"; rc=1; continue; }
+    _rsync_to "$h" "$tmp/cmd.sh" "rig-runs/$job/" && _rsync_to "$h" "$tmp/env.sh" "rig-runs/$job/" || { rc=1; continue; }
+    _r "$h" "bash $BIN/startjob.sh $job" || rc=1
+  done; rm -rf "$tmp"; return $rc
+}
+cmd_logs() { local h="$1" job="$2"; shift 2; local n=40 follow=0
+  while [ $# -gt 0 ]; do case "$1" in -n) n="$2"; shift 2;; -f) follow=1; shift;; *) shift;; esac; done
+  if [ $follow = 1 ]; then _rt "$h" "tail -n $n -f \$HOME/rig-runs/$job/stdout.log"; else _r "$h" "tail -n $n \$HOME/rig-runs/$job/stdout.log"; fi; }
+cmd_wait() {
+  local specs=() timeout=0 poll=10
+  if [ "${1:-}" = all ]; then local h; for h in $(_all_hosts); do specs+=("$h:$2"); done; shift 2; else while [ $# -gt 0 ] && [[ "$1" == *:* ]]; do specs+=("$1"); shift; done; fi
+  while [ $# -gt 0 ]; do case "$1" in --timeout) timeout="$2"; shift 2;; --poll) poll="$2"; shift 2;; *) die "wait: unexpected '$1'";; esac; done
+  [ ${#specs[@]} -gt 0 ] || die "wait: give host:job pairs or 'all <job>'"
+  local t0; t0=$(date +%s); local fail=0 s h j out
+  while [ ${#specs[@]} -gt 0 ]; do
+    local left=()
+    for s in "${specs[@]}"; do h="${s%%:*}"; j="${s#*:}"
+      out=$(_r "$h" "cat \$HOME/rig-runs/$j/exit_code 2>/dev/null || (tmux list-sessions -F \"#S\" 2>/dev/null | grep -qx rig-$j && echo RUNNING || echo GONE)" 2>/dev/null || echo UNREACHABLE)
+      case "$out" in
+        RUNNING|UNREACHABLE) left+=("$s");;
+        GONE) echo "$h:$j  vanished (no session, no exit code)  [$(( $(date +%s)-t0 ))s]"; fail=1;;
+        *) [ "$out" = 0 ] && echo "$h:$j  finished OK  [$(( $(date +%s)-t0 ))s]" || { echo "$h:$j  FAILED exit=$out  [$(( $(date +%s)-t0 ))s]"; fail=1; };;
+      esac; done
+    specs=("${left[@]+"${left[@]}"}"); [ ${#specs[@]} -gt 0 ] || break
+    if [ "$timeout" -gt 0 ] && [ $(( $(date +%s)-t0 )) -ge "$timeout" ]; then echo "timeout after ${timeout}s, still running: ${specs[*]}"; return 2; fi
+    sleep "$poll"; done; return $fail; }
+cmd_collect() { local tgt="$1" job="$2" dest="${3:-$RIG_HOME/results}"; local h
+  for h in $(_expand "$tgt"); do _rsync_from "$h" "rig-runs/$job/" "$dest/$h/$job/" --exclude code/ && echo "collected $h:$job -> $dest/$h/$job/ ($(find "$dest/$h/$job" -type f | wc -l) files)" || echo "  $h: collect failed"; done; }
+cmd_kill()   { local h; for h in $(_expand "$1"); do _r "$h" "bash $BIN/killjob.sh $2"; done; }
+cmd_envcheck(){ local h; for h in $(_expand "${1:-all}"); do _r "$h" 'mkdir -p $HOME/rig-runs/.env' && _rsync_to "$h" "$RIG_HOME/requirements.txt" "rig-runs/.env/" && _r "$h" "bash $BIN/envcheck.sh \$HOME/rig-runs/.env/requirements.txt"; done; }
+cmd_envsync(){ local tgt="${1:-all}" req="${2:-$RIG_HOME/requirements.txt}"; [ -f "$req" ] || die "no such file $req"; local h
+  for h in $(_expand "$tgt"); do _r "$h" 'mkdir -p $HOME/rig-runs/.env' && _rsync_to "$h" "$req" "rig-runs/.env/requirements.txt" && cmd_run "$h" envsync -- "bash \$HOME/rig-runs/.bin/envsync.sh \$HOME/rig-runs/.env/requirements.txt"; done
+  echo "follow with: rig logs <host> envsync -f   |   wait with: rig wait $tgt envsync"; }
+
+cmd_learn() {
+  if [ -n "$RIG_HUB" ]; then _hub_push_lessons; _r "$RIG_HUB" '$HOME/fleet/bin/rig learn'; _hub_pull_exp; return; fi
+  local out="$HOME/fleet/experience/data/rig_jobs.jsonl" tmp; tmp=$(mktemp); mkdir -p "$(dirname "$out")"; touch "$out"
+  local h; for h in $(_all_hosts); do _r "$h" "python3 \$HOME/rig-runs/.bin/harvest.py" >> "$tmp" 2>/dev/null || echo "  harvest: $h unreachable"; done
+  python3 - "$out" "$tmp" <<'PY'
+import json, sys
+out, tmp = sys.argv[1:3]; seen = set()
+for l in open(out):
+    try: r = json.loads(l); seen.add((r["host"], r["job"], r["started"]))
+    except Exception: pass
+new = 0
+with open(out, "a") as f:
+    for l in open(tmp):
+        try: r = json.loads(l)
+        except Exception: continue
+        k = (r["host"], r["job"], r["started"])
+        if k in seen: continue
+        seen.add(k); f.write(json.dumps(r) + "\n"); new += 1
+print(f"harvested {new} new finished job(s)")
+PY
+  rm -f "$tmp"; python3 "$HOME/fleet/lib/learn.py"; }
+cmd_experience() {
+  local E="$HOME/fleet/experience"; [ -z "$RIG_HUB" ] || _hub_pull_exp
+  echo "================ LESSONS (curated) ================"; sed -n '1,400p' "$E/LESSONS.md" 2>/dev/null || echo "(none yet)"
+  echo; echo "================ LEARNED MODEL (auto) ================"; sed -n '1,200p' "$E/EXPERIENCE.md" 2>/dev/null || echo "(run: rig learn)"
+  echo; echo "================ LIVE GPU STATE ================"; cmd_gpu all; }
+cmd_dispatch() {  # on a controller, the new task/run records are appended to the hub's store so the hub keeps learning
+  [ -n "$RIG_HUB" ] || exec python3 "$HOME/fleet/lib/dispatch.py" "$@"
+  _hub_pull_exp; local D="$HOME/fleet/experience/data" f n rc; mkdir -p "$D"; touch "$D/tasks.jsonl" "$D/runs.jsonl"
+  local nt nr; nt=$(wc -l < "$D/tasks.jsonl"); nr=$(wc -l < "$D/runs.jsonl")
+  python3 "$HOME/fleet/lib/dispatch.py" "$@"; rc=$?
+  for f in tasks runs; do [ $f = tasks ] && n=$nt || n=$nr
+    tail -n +$((n+1)) "$D/$f.jsonl" | _r "$RIG_HUB" "cat >> \$HOME/fleet/experience/data/$f.jsonl" || echo "rig: could not send $f records to $RIG_HUB" >&2; done
+  return $rc; }
+cmd_sync() { [ -n "$RIG_HUB" ] || die "sync: only on a controller (no $RIG_HOME/controller.conf here)"
+  local a d; a=$(_alias "$RIG_HUB")
+  for d in bin lib agent jobs requirements.txt README.md; do rsync -az -e "ssh ${SSH_OPTS[*]}" --exclude __pycache__ "$a:fleet/$d" "$RIG_HOME/" || die "sync: could not pull fleet/$d from $RIG_HUB"; done
+  mkdir -p "$HOME/.claude/skills/fleet" && rsync -az -e "ssh ${SSH_OPTS[*]}" "$a:.claude/skills/fleet/" "$HOME/.claude/skills/fleet/" || die "sync: could not pull the fleet skill"
+  _hub_pull_exp && echo "synced code, fleet skill and learned experience from $RIG_HUB"; }
+c="${1:-help}"; shift || true
+case "$c" in
+  hosts) cmd_hosts;; gpu) cmd_gpu "$@";; setup) cmd_setup "$@";; exec) cmd_exec "$@";; push) cmd_push "$@";; pull) cmd_pull "$@";;
+  run) cmd_run "$@";; status) cmd_status "$@";; logs) cmd_logs "$@";; wait) cmd_wait "$@";; collect) cmd_collect "$@";; kill) cmd_kill "$@";;
+  env-check) cmd_envcheck "$@";; env-sync) cmd_envsync "$@";;
+  learn) cmd_learn;; experience|exp) cmd_experience;; sync) cmd_sync;;
+  sample) if [ -n "$RIG_HUB" ]; then _r "$RIG_HUB" "\$HOME/fleet/bin/rig sample $*"; else python3 "$HOME/fleet/lib/sample.py" "$@" -v | tail -n 0; echo "sampled"; fi;;
+  dispatch) cmd_dispatch "$@";; help|-h|--help) usage;; *) usage; die "unknown command '$c'";;
+esac

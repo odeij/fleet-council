@@ -1,0 +1,3 @@
+# Present ONLY on a controller (e.g. your laptop), never on the hub.
+# Its presence switches `rig` to controller mode: learn/sample/experience go through the hub, `rig sync` pulls from it.
+RIG_HUB=hub

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+gui/server.log
+fleet/results/
+fleet/experience/data/
+fleet/experience/model.json
+fleet/experience/EXPERIENCE.md
+fleet/hosts.conf
+fleet/controller.conf
