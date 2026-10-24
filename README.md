@@ -28,13 +28,14 @@ flowchart LR
         A["Host A · 2x RTX 2080 SUPER 8 GB"]
         B["Host B · RTX 2080 Ti 11 GB"]
         C["rig4090 · RTX 4090 24 GB<br/>joining next: +1 line in hosts.conf"]
+        S["DGX Spark ×N · GB10 Grace Blackwell<br/>coming soon"]
         N["Host N · any NVIDIA GPU"]
     end
     AC -->|same question, in parallel| CX & CL
     CX & CL -->|independent answers| CC
-    FS -->|rig run / rig dispatch| HUB & A & B & C & N
+    FS -->|rig run / rig dispatch| HUB & A & B & C & S & N
     HUB -->|rig learn: model.json + LESSONS.md| FS
-    GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & C & N
+    GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & C & S & N
 ```
 
 ## Why
@@ -77,6 +78,13 @@ gpu-box-c     gpu-box-c   0,1,2,3      # any further box, same way
 - The sampler, learner and dashboard read the same file, so a new host shows up in telemetry and the GUI by itself.
 - The real limit is bandwidth, not lanes: remote GPUs share the hub's uplink, so staging data on the workers
   (`rig push`) or shipping compact inputs is what keeps a large fleet busy. The scheduler models this per lane.
+
+## Roadmap: DGX Spark nodes
+
+Several NVIDIA DGX Spark machines (GB10 Grace Blackwell, 128 GB unified memory) are joining the fleet next. They are
+ARM64 (aarch64), which makes them the first non-x86 hosts: `rig` itself is plain bash/ssh and needs no change, and
+`rig env-sync <host> <pins>` already takes a per-host pin file for the aarch64 CUDA wheels. Their 128 GB of unified
+memory will be the largest lane caps in the fleet, so the scheduler should route the biggest tasks there by itself.
 
 ## Measured on the reference fleet
 
