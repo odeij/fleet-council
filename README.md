@@ -48,7 +48,8 @@ flowchart LR
 ## Dashboard
 
 Live GPUs, utilization history, jobs, processes and log tails for every machine, read-only. Light and dark themes,
-works on a phone. Screenshots are from `python3 gui/server.py --demo` (simulated fleet).
+works on a phone. Try it without a cluster: `python3 gui/server.py --demo`, then open http://127.0.0.1:8787.
+Details: [gui/README.md](gui/README.md).
 
 | Dark | Light |
 |---|---|
@@ -77,7 +78,7 @@ writes down what it learned so the next plan is better.
 | [`fleet/lib/learn.py`](fleet/lib/learn.py) | Fits per-lane `time = a + b·size`, push rates, GPU throughput, memory per unit, reliability and hourly free-memory profiles from every run → `model.json` + `EXPERIENCE.md`. |
 | [`fleet/lib/sample.py`](fleet/lib/sample.py) | Cron telemetry: every GPU on every host each minute (util, memory, temp, power, clocks, who holds it; other users anonymized) + hourly bandwidth probes. |
 | [`fleet/experience/LESSONS.md`](fleet/experience/LESSONS.md) | The curated half of the memory: lessons the agent writes after each run, with evidence and confidence. |
-| [`gui/`](gui/) | Stdlib web dashboard: live GPUs, jobs, processes and log tails for the whole fleet, read-only. |
+| [`gui/`](gui/) | Stdlib web dashboard: live GPUs, jobs, processes and log tails for the whole fleet, read-only, with a `--demo` mode and tests. |
 | [`skills/fleet`](skills/fleet/SKILL.md) | The Claude Code skill that teaches the agent the protocol: read experience → plan → run → learn. |
 | [`skills/agent-council`](skills/agent-council/) | My council setup on top of the open-source agent-council skill. |
 

@@ -1,19 +1,50 @@
-#!/bin/bash
-# Fleet GUI: start the local server (if it is not running) and open the page in the browser.
-#   bash gui/run.sh            open http://127.0.0.1:8787
-#   bash gui/run.sh stop       stop the server
-#   bash gui/run.sh log        show the server log
-# The server polls every rig in the hub's ~/fleet/hosts.conf over ssh every 20 s. Set FLEET_HUB to the hub's ssh alias.
-HERE="$(cd "$(dirname "$0")" && pwd)"; PORT=8787
+#!/usr/bin/env bash
+# Start the fleet GUI in the background and open it in the browser.
+#
+#   bash gui/run.sh          poll the real fleet (hub alias from $FLEET_HUB, default "hub")
+#   bash gui/run.sh demo     simulated fleet, no ssh needed
+#   bash gui/run.sh stop     stop the server
+#   bash gui/run.sh log      show the server log
+#
+# Port: $FLEET_GUI_PORT (default 8787). Poll interval: $FLEET_GUI_INTERVAL (default 20 s).
+set -euo pipefail
+
+readonly HERE="$(cd "$(dirname "$0")" && pwd)"
+readonly PORT="${FLEET_GUI_PORT:-8787}"
+readonly INTERVAL="${FLEET_GUI_INTERVAL:-20}"
+readonly LOG="${HERE}/server.log"
+readonly URL="http://127.0.0.1:${PORT}"
+
+is_listening() {
+  lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN > /dev/null 2>&1
+}
+
+open_page() {
+  if command -v open > /dev/null; then
+    open "${URL}"
+  elif command -v xdg-open > /dev/null; then
+    xdg-open "${URL}"
+  else
+    echo "open ${URL}"
+  fi
+}
+
+start() {
+  if is_listening; then
+    echo "already running on ${URL}"
+  else
+    nohup python3 "${HERE}/server.py" --port "${PORT}" --interval "${INTERVAL}" "$@" \
+      > "${LOG}" 2>&1 &
+    echo "started on ${URL} (log: ${LOG})"
+    sleep 2
+  fi
+  open_page
+}
+
 case "${1:-}" in
-  stop) pkill -f "$HERE/server.py" && echo "stopped" || echo "not running"; exit 0 ;;
-  log) tail -n 40 "$HERE/server.log"; exit 0 ;;
+  stop) pkill -f "${HERE}/server.py" && echo "stopped" || echo "not running" ;;
+  log) tail -n 40 "${LOG}" ;;
+  demo) start --demo ;;
+  "") start ;;
+  *) echo "usage: $0 [demo|stop|log]" >&2; exit 2 ;;
 esac
-if ! lsof -nP -iTCP:$PORT -sTCP:LISTEN > /dev/null 2>&1; then
-  nohup python3 "$HERE/server.py" --port $PORT --interval 20 > "$HERE/server.log" 2>&1 &
-  echo "server started (log $HERE/server.log); first poll takes ~15 s"
-  sleep 2
-else
-  echo "server already running"
-fi
-command -v open >/dev/null && open "http://127.0.0.1:$PORT" || xdg-open "http://127.0.0.1:$PORT"

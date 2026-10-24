@@ -1,0 +1,576 @@
+/* Fleet dashboard. Light theme by default; dark follows the OS or the
+ * data-theme attribute that theme.js and the Theme button set. */
+
+:root {
+  --bg: #f4f4f2;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --line: #e2e1dc;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #7a7974;
+  --accent: #2a78d6;
+  --accent-strong: #1c5cab;
+  --track: #cde2fb;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --critical-text: #b42f2f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .04);
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121211;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --line: #2e2e2b;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #8d8c85;
+    --accent: #3987e5;
+    --accent-strong: #6da7ec;
+    --track: #1d3352;
+    --good-text: #5fd35f;
+    --critical-text: #e66767;
+    --shadow: none;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #121211;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --line: #2e2e2b;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --muted: #8d8c85;
+  --accent: #3987e5;
+  --accent-strong: #6da7ec;
+  --track: #1d3352;
+  --good-text: #5fd35f;
+  --critical-text: #e66767;
+  --shadow: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Helvetica, Arial, sans-serif;
+}
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+h2 {
+  margin: 28px 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Header */
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.live i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent);
+}
+
+.live.stale i {
+  background: var(--warning);
+  box-shadow: none;
+}
+
+.demo {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #0b0b0b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.spacer {
+  flex: 1;
+}
+
+button.ghost {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button.ghost:hover,
+button.ghost:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Summary tiles */
+
+.tiles {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tiles > *,
+.hosts > * {
+  min-width: 0;
+}
+
+.tile {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.tile .label {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.tile .value {
+  margin-top: 4px;
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+
+.tile .value small {
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.tile.hero .value {
+  font-size: 52px;
+  line-height: 1.05;
+}
+
+.tile .sub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Machine cards */
+
+.hosts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+.host {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.host:hover,
+.host:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.host.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.host .top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.host .name {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.host .meta {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.host .now {
+  overflow: hidden;
+  margin-top: 12px;
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.host .now b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.hub-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--track);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill.ok {
+  color: var(--good-text);
+}
+
+.pill.off {
+  color: var(--critical-text);
+}
+
+/* Status markers: filled = good or running, hollow = off or other,
+ * square = failed. Shape carries the meaning, not only color. */
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dot.hollow {
+  border: 1.5px solid currentColor;
+  background: transparent;
+}
+
+.dot.square {
+  border-radius: 2px;
+}
+
+.no-gpu {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* GPU rows */
+
+.gpu {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.gpu-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.gpu-head b {
+  font-weight: 600;
+}
+
+.temp {
+  margin-left: auto;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.temp.hot {
+  color: var(--critical-text);
+  font-weight: 600;
+}
+
+.metric {
+  display: grid;
+  grid-template-columns: 64px 1fr 92px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.metric .key {
+  color: var(--text-2);
+}
+
+.metric .value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.meter {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+}
+
+.meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width .5s ease;
+}
+
+.meter > i.warn {
+  background: var(--warning);
+}
+
+.meter > i.crit {
+  background: var(--critical);
+}
+
+.spark {
+  display: block;
+  overflow: visible;
+  width: 100%;
+  height: 34px;
+  margin-top: 10px;
+}
+
+.spark .area {
+  fill: var(--accent);
+  opacity: .12;
+}
+
+.spark .line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* Tables */
+
+.card {
+  overflow-x: auto;
+  padding: 6px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+th {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+th.num,
+td.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+td code,
+pre {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+td code {
+  color: var(--text-2);
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.state.run {
+  color: var(--accent-strong);
+}
+
+.state.ok {
+  color: var(--good-text);
+}
+
+.state.bad {
+  color: var(--critical-text);
+}
+
+.empty {
+  padding: 14px 0;
+  color: var(--muted);
+}
+
+/* Processes and logs of the selected machine */
+
+.logs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.logs button {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.logs button.selected {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.log-box {
+  overflow: auto;
+  max-height: 360px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+pre {
+  margin: 0;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+#tooltip {
+  position: fixed;
+  z-index: 9;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .1s;
+}
+
+/* Narrow screens */
+
+@media (max-width: 860px) {
+  .tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tile.hero .value {
+    font-size: 40px;
+  }
+}
+
+@media (max-width: 520px) {
+  .tile,
+  .host {
+    padding: 14px;
+  }
+
+  .tile .value {
+    font-size: 24px;
+  }
+
+  .tile.hero .value {
+    font-size: 34px;
+  }
+
+  .metric {
+    grid-template-columns: 72px 1fr 84px;
+  }
+}

@@ -86,8 +86,8 @@ FLEET_HUB=<hub ssh alias> bash gui/run.sh        # http://127.0.0.1:8787, polls 
 ```
 
 Read-only by design: it only tails log files each host's collector lists, and runs no other remote commands.
-No cluster yet? `python3 gui/server.py --demo` serves a simulated fleet (badged "Demo data") to try the UI.
-`?theme=light` or `?theme=dark` in the URL forces a theme.
+No cluster yet? `bash gui/run.sh demo` serves a simulated fleet (badged "Demo data") to try the UI.
+`?theme=light` or `?theme=dark` in the URL forces a theme. Options, API and code layout: [gui/README.md](../gui/README.md).
 
 ## 9. Give Claude Code the skills
 

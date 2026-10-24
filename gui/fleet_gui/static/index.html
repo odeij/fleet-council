@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fleet Monitor</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Loaded before first paint so a saved theme never flashes. -->
+  <script src="theme.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Fleet</h1>
+      <span class="live" id="live"><i></i><span id="live-text">Connecting</span></span>
+      <span id="demo-badge"></span>
+      <span class="spacer"></span>
+      <button class="ghost" id="theme-button" type="button"
+              aria-label="Toggle light or dark theme">Theme</button>
+      <button class="ghost" id="refresh-button" type="button">Refresh</button>
+    </header>
+
+    <section class="tiles" id="tiles" aria-label="Fleet summary"></section>
+
+    <h2>Machines</h2>
+    <section class="hosts" id="hosts"></section>
+
+    <h2>Jobs</h2>
+    <section class="card" id="jobs"></section>
+
+    <section id="detail"></section>
+  </div>
+  <div id="tooltip" role="tooltip"></div>
+</body>
+</html>
