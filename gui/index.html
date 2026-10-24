@@ -5,161 +5,277 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fleet Monitor</title>
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a; --fg:#e6e8ee; --dim:#9aa3b2; --ok:#3ddc84; --warn:#f5c542; --bad:#ff5c5c; --acc:#5aa9ff; --mono:ui-monospace,SFMono-Regular,Menlo,monospace; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
-  header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:2; }
-  header h1 { font-size:16px; margin:0; font-weight:600; }
-  header .meta { color:var(--dim); font-size:12px; }
-  header button { margin-left:auto; background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 10px; cursor:pointer; }
-  header button:hover { border-color:var(--acc); }
-  .layout { display:grid; grid-template-columns:300px 1fr; min-height:calc(100vh - 49px); }
-  aside { border-right:1px solid var(--line); background:var(--panel); padding:12px; overflow:auto; }
-  main { padding:16px 20px; overflow:auto; }
-  .rig { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; cursor:pointer; background:var(--panel2); }
-  .rig:hover { border-color:var(--acc); }
-  .rig.sel { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc) inset; }
-  .rig .top { display:flex; align-items:center; gap:8px; font-weight:600; }
-  .dot { width:9px; height:9px; border-radius:50%; background:var(--dim); display:inline-block; }
-  .dot.on { background:var(--ok); } .dot.off { background:var(--bad); } .dot.stale { background:var(--warn); }
-  .rig .sub { color:var(--dim); font-size:12px; margin-top:2px; }
-  .bar { height:8px; background:#2b3140; border-radius:4px; overflow:hidden; margin-top:4px; }
-  .bar > i { display:block; height:100%; background:var(--acc); }
-  .bar > i.mem { background:#8f7cff; }
-  .gpuline { display:flex; align-items:center; gap:8px; font-size:12px; margin-top:6px; }
-  .gpuline .bar { flex:1; margin:0; }
-  .gpuline .lab { width:46px; color:var(--dim); }
-  .gpuline .val { width:88px; text-align:right; font-family:var(--mono); color:var(--dim); }
-  .run { font-size:12px; margin-top:6px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  h2 { font-size:15px; margin:18px 0 8px; color:var(--fg); }
-  h2:first-child { margin-top:0; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { color:var(--dim); font-weight:500; font-size:12px; }
-  td.num { font-family:var(--mono); text-align:right; white-space:nowrap; }
-  .gpu { display:grid; grid-template-columns:110px 1fr 1fr 60px; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; }
-  .gpu:last-child { border-bottom:0; }
-  .gpu .lbl { font-size:11px; color:var(--dim); }
-  pre { margin:0; font-family:var(--mono); font-size:12px; white-space:pre-wrap; word-break:break-all; color:#cfd5e1; }
-  .pill { display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; border:1px solid var(--line); color:var(--dim); margin-right:6px; }
-  .pill.training { color:var(--acc); border-color:var(--acc); } .pill.trained { color:var(--ok); border-color:var(--ok); }
-  .pill.interrupted, .pill.failed { color:var(--bad); border-color:var(--bad); } .pill.close-out, .pill.starting, .pill.queued { color:var(--warn); border-color:var(--warn); }
-  .logs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-  .logs button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; font-family:var(--mono); }
-  .logs button.sel { border-color:var(--acc); color:var(--acc); }
-  .logbox { background:#0b0d11; border:1px solid var(--line); border-radius:8px; padding:10px; max-height:420px; overflow:auto; }
-  .muted { color:var(--dim); } .err { color:var(--bad); }
-  .overview .row { display:grid; grid-template-columns:120px 1fr; gap:8px; padding:4px 0; border-bottom:1px solid var(--line); }
-  .kv { display:flex; gap:18px; flex-wrap:wrap; color:var(--dim); font-size:12px; margin-bottom:8px; }
-  .kv b { color:var(--fg); font-weight:500; }
-  label.chk { font-size:12px; color:var(--dim); margin-left:10px; }
-  @media (max-width: 800px) { .layout { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } }
+  :root {
+    --bg: #f4f4f2; --surface: #fcfcfb; --surface-2: #f0efec; --line: #e2e1dc;
+    --text: #0b0b0b; --text-2: #52514e; --muted: #7a7974;
+    --accent: #2a78d6; --accent-strong: #1c5cab; --track: #cde2fb;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --good-text: #006300; --critical-text: #b42f2f;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --line: #2e2e2b;
+      --text: #f0efec; --text-2: #c3c2b7; --muted: #8d8c85;
+      --accent: #3987e5; --accent-strong: #6da7ec; --track: #1d3352;
+      --good-text: #5fd35f; --critical-text: #e66767; --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --line: #2e2e2b;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #8d8c85;
+    --accent: #3987e5; --accent-strong: #6da7ec; --track: #1d3352;
+    --good-text: #5fd35f; --critical-text: #e66767; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  header h1 { font-size: 20px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+  .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+  .live.stale i { background: var(--warning); box-shadow: none; }
+  .demo { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--warning); color: #0b0b0b; }
+  .spacer { flex: 1; }
+  button.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+                 padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  button.ghost:hover { border-color: var(--accent); }
+
+  .tiles { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .tile .label { font-size: 13px; color: var(--text-2); }
+  .tile .value { font-size: 30px; font-weight: 650; margin-top: 4px; letter-spacing: -.02em; }
+  .tile .value small { font-size: 15px; font-weight: 500; color: var(--text-2); letter-spacing: 0; }
+  .tile.hero .value { font-size: 52px; line-height: 1.05; }
+  .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  h2 { font-size: 15px; font-weight: 600; margin: 28px 0 10px; }
+  .hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 12px; align-items: start; }
+  .tiles > *, .hosts > * { min-width: 0; }
+  .host { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+          box-shadow: var(--shadow); cursor: pointer; transition: border-color .15s; }
+  .host:hover { border-color: var(--accent); }
+  .host.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .host .top { display: flex; align-items: center; gap: 8px; }
+  .host .name { font-weight: 650; font-size: 16px; }
+  .host .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 2px 8px;
+          border-radius: 999px; border: 1px solid var(--line); color: var(--text-2); margin-left: auto; white-space: nowrap; }
+  .pill.ok { color: var(--good-text); } .pill.off { color: var(--critical-text); }
+  .pill .ic { font-size: 10px; }
+  .hubtag { font-size: 11px; font-weight: 600; color: var(--accent-strong); background: var(--track); padding: 1px 7px; border-radius: 999px; }
+
+  .gpu { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .gpu-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+  .gpu-head b { font-weight: 600; }
+  .gpu-head .temp { margin-left: auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .temp.hot { color: var(--critical-text); font-weight: 600; }
+  .row { display: grid; grid-template-columns: 64px 1fr 92px; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; }
+  .row .k { color: var(--text-2); }
+  .row .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .meter { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .meter > i { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width .5s ease; }
+  .meter > i.warn { background: var(--warning); } .meter > i.crit { background: var(--critical); }
+  .spark { display: block; width: 100%; height: 34px; margin-top: 10px; overflow: visible; }
+  .spark .area { fill: var(--accent); opacity: .12; } .spark .ln { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+  .spark .dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+  .host .now { font-size: 12px; color: var(--text-2); margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .host .now b { color: var(--text); font-weight: 500; }
+  .nogpu { margin-top: 12px; font-size: 13px; color: var(--muted); }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 18px; box-shadow: var(--shadow); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--text-2); font-weight: 500; font-size: 12px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td code, pre { font-family: var(--mono); font-size: 12px; }
+  td code { color: var(--text-2); }
+  .state { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .state.run { color: var(--accent-strong); } .state.ok { color: var(--good-text); } .state.bad { color: var(--critical-text); }
+  .empty { color: var(--muted); padding: 14px 0; }
+
+  .logs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+  .logs button { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+                 padding: 4px 9px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  .logs button.sel { border-color: var(--accent); color: var(--accent-strong); }
+  .logbox { background: var(--surface-2); border-radius: 10px; padding: 12px; max-height: 360px; overflow: auto; margin-bottom: 12px; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--text-2); }
+
+  #tip { position: fixed; pointer-events: none; background: var(--text); color: var(--surface); font-size: 12px;
+         padding: 4px 8px; border-radius: 6px; opacity: 0; transition: opacity .1s; white-space: nowrap; z-index: 9; }
+  @media (max-width: 860px) { .tiles { grid-template-columns: 1fr 1fr; } .tile.hero .value { font-size: 40px; } }
+  @media (max-width: 520px) { .tile { padding: 14px; } .tile .value { font-size: 24px; } .tile.hero .value { font-size: 34px; }
+    .row { grid-template-columns: 72px 1fr 84px; } .host { padding: 14px; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Fleet Monitor</h1>
-  <span class="meta" id="meta">connecting…</span>
-  <button onclick="refreshNow()">Refresh now</button>
-</header>
-<div class="layout">
-  <aside id="side"></aside>
-  <main id="main"><div class="muted">Loading…</div></main>
+<div class="wrap">
+  <header>
+    <h1>Fleet</h1>
+    <span class="live" id="live"><i></i><span id="livetxt">connecting…</span></span>
+    <span id="demo"></span>
+    <span class="spacer"></span>
+    <button class="ghost" onclick="toggleTheme()" aria-label="Toggle light or dark theme">◐ Theme</button>
+    <button class="ghost" onclick="refreshNow()">↻ Refresh</button>
+  </header>
+
+  <section class="tiles" id="tiles"></section>
+
+  <h2>Machines</h2>
+  <section class="hosts" id="hosts"></section>
+
+  <h2>Jobs</h2>
+  <section class="card" id="jobs"></section>
+
+  <div id="detail"></div>
 </div>
+<div id="tip"></div>
 <script>
-let state = null, selected = null, logSel = null, logTimer = null, autoLog = true;
+let state = null, selected = null, logSel = null, logTimer = null;
+const hist = {};                       // "host:gpu" -> last 40 utilization samples, from the server
+const HIST = 40;
 
-function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function ago(epoch) { if (!epoch) return '–'; const s = Math.max(0, Math.floor(Date.now()/1000 - epoch)); return s < 60 ? s + ' s ago' : s < 3600 ? Math.floor(s/60) + ' min ago' : (s/3600).toFixed(1) + ' h ago'; }
-function fmtMB(m) { return m >= 1024 ? (m/1024).toFixed(1) + ' GB' : m + ' MB'; }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const gb = mb => (mb / 1024).toFixed(mb >= 10240 ? 0 : 1);
+function ago(epoch) { if (!epoch) return '–'; const s = Math.max(0, Math.floor(Date.now()/1000 - epoch));
+  return s < 60 ? s + ' s ago' : s < 3600 ? Math.floor(s/60) + ' min ago' : (s/3600).toFixed(1) + ' h ago'; }
+function dur(s) { return s < 60 ? s + ' s' : s < 3600 ? Math.floor(s/60) + ' min' : s < 86400 ? (s/3600).toFixed(1) + ' h' : Math.round(s/86400) + ' d'; }
+const pct = (a, b) => Math.round(100 * a / Math.max(1, b));
+const sev = p => p >= 95 ? 'crit' : p >= 85 ? 'warn' : '';
 
-function statusOf(r) {
-  if (!r) return 'off';
-  if (!r.online) return 'off';
-  if (Date.now()/1000 - r.fetched > 3 * (state.poll_interval || 20) + 30) return 'stale';
-  return 'on';
+function toggleTheme() {
+  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('fleet-theme', r.dataset.theme); } catch (e) {}
 }
-function runningLine(r) {
-  const s = r && r.snapshot; if (!s) return r && r.error ? 'offline: ' + r.error : 'offline';
-  const parts = [];
-  for (const j of s.fleet_jobs || []) if (j.state === 'running') parts.push('job ' + j.job);
-  for (const p of s.processes || []) if (p.name.startsWith('dispatcher')) parts.push(p.name);
-  if (!parts.length) parts.push(s.processes && s.processes.length ? s.processes[0].name : 'idle');
-  return parts.join(' · ');
-}
+try { const t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('fleet-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
 
-function renderSide() {
-  const side = document.getElementById('side');
-  const names = state.hosts.length ? state.hosts : Object.keys(state.rigs);
-  side.innerHTML = `<div class="rig ${selected === null ? 'sel' : ''}" onclick="select(null)"><div class="top"><span class="dot on"></span>Fleet overview</div><div class="sub">${names.length} rigs in ~/fleet/hosts.conf</div></div>` +
-    names.map(n => {
-      const r = state.rigs[n]; const st = statusOf(r); const s = r && r.snapshot;
-      const gpus = (s && s.gpus || []).map(g => `<div class="gpuline"><span class="lab">GPU${g.index}</span><div class="bar"><i style="width:${g.util}%"></i></div><span class="val">${g.util}% ${fmtMB(g.mem_used)}</span></div>`).join('');
-      return `<div class="rig ${selected === n ? 'sel' : ''}" onclick="select('${n}')">
-        <div class="top"><span class="dot ${st}"></span>${esc(n)} <span class="sub" style="margin-left:auto">${r ? (r.online ? ago(r.fetched) : 'offline') : 'no data'}</span></div>
-        ${gpus || '<div class="sub">no GPU info</div>'}
-        <div class="run" title="${esc(runningLine(r))}">${esc(runningLine(r))}</div></div>`;
-    }).join('');
+function hosts() { return state.hosts.length ? state.hosts : Object.keys(state.rigs); }
+function online(r) { return r && r.online && Date.now()/1000 - r.fetched < 3 * (state.poll_interval || 20) + 30; }
+function allGpus() { const out = []; for (const n of hosts()) { const r = state.rigs[n]; if (online(r)) for (const g of r.snapshot.gpus || []) out.push(g); } return out; }
+function allJobs() { const out = []; for (const n of hosts()) { const r = state.rigs[n]; if (r && r.snapshot) for (const j of r.snapshot.fleet_jobs || []) out.push({...j, host: n}); } return out; }
+
+function recordHistory() {   // the server keeps the last 40 samples per GPU, so trends show on first load
+  for (const [k, h] of Object.entries(state.hist || {})) hist[k] = h.map(([t, u]) => ({t, u}));
 }
 
-function renderOverview() {
-  const names = state.hosts.length ? state.hosts : Object.keys(state.rigs);
-  let gpus = 0, busy = 0, memU = 0, memT = 0, jobs = [];
-  for (const n of names) { const r = state.rigs[n]; if (!r || !r.snapshot) continue;
-    for (const g of r.snapshot.gpus || []) { gpus++; busy += g.util > 10; memU += g.mem_used; memT += g.mem_total; }
-    jobs = jobs.concat((r.snapshot.fleet_jobs || []).filter(j => j.state === 'running').map(j => ({...j, rig:n}))); }
-  return `<h2>Fleet</h2><div class="card"><div class="kv"><span><b>${names.length}</b> rigs</span><span><b>${gpus}</b> GPUs</span><span><b>${busy}</b> busy</span><span>memory <b>${fmtMB(memU)} / ${fmtMB(memT)}</b></span></div></div>
-    <h2>Running jobs</h2><div class="card">${jobs.length ? '<table><tr><th>Rig</th><th>Job</th><th>Last line</th></tr>' + jobs.map(j => `<tr><td>${esc(j.rig)}</td><td>${esc(j.job)}</td><td><pre>${esc(j.last)}</pre></td></tr>`).join('') + '</table>' : '<div class="muted">none</div>'}</div>
-    <h2>Rigs</h2><div class="card overview">${names.map(n => { const r = state.rigs[n]; return `<div class="row"><b>${esc(n)}</b><span>${esc(runningLine(r))}</span></div>`; }).join('')}</div>`;
+function renderTiles() {
+  const g = allGpus(), totalGpus = hosts().reduce((a, n) => a + ((state.rigs[n]?.snapshot?.gpus || []).length), 0);
+  const util = g.length ? Math.round(g.reduce((a, x) => a + x.util, 0) / g.length) : 0;
+  const used = g.reduce((a, x) => a + x.mem_used, 0), tot = g.reduce((a, x) => a + x.mem_total, 0);
+  const running = allJobs().filter(j => j.state === 'running').length;
+  const up = hosts().filter(n => online(state.rigs[n])).length;
+  document.getElementById('tiles').innerHTML = `
+    <div class="tile hero"><div class="label">GPUs online</div><div class="value">${g.length}<small> / ${totalGpus || g.length}</small></div><div class="sub">${up} of ${hosts().length} machines reachable</div></div>
+    <div class="tile"><div class="label">Average utilization</div><div class="value">${util}<small> %</small></div><div class="sub">across online GPUs</div></div>
+    <div class="tile"><div class="label">GPU memory in use</div><div class="value">${gb(used)}<small> / ${gb(tot)} GB</small></div><div class="sub">${pct(used, tot)} % of fleet VRAM</div></div>
+    <div class="tile"><div class="label">Running jobs</div><div class="value">${running}</div><div class="sub">started with rig run</div></div>`;
 }
 
-function renderRig(n) {
-  const r = state.rigs[n]; if (!r) return `<div class="muted">no data for ${esc(n)} yet</div>`;
-  const s = r.snapshot; const st = statusOf(r);
-  let html = `<div class="kv"><span><span class="dot ${st}"></span> <b>${esc(n)}</b> (${esc(r.alias)}${r.hub ? ', hub' : ''})</span><span>polled <b>${ago(r.fetched)}</b>, round trip ${r.rtt_s} s</span>${s ? `<span>rig time <b>${esc(s.time)}</b></span><span>load <b>${esc((s.load||[]).join(' '))}</b></span><span>disk free <b>${esc(s.disk_free)}</b></span>` : ''}${r.online ? '' : `<span class="err">offline: ${esc(r.error || '')}${r.last_online ? ' (last snapshot ' + ago(r.last_online) + ')' : ''}</span>`}</div>`;
-  if (!s) return html;
-  html += `<h2>GPUs</h2><div class="card">` + ((s.gpus||[]).map(g => `<div class="gpu"><div>GPU${g.index} <span class="lbl">${esc(g.name)}</span></div>
-      <div><div class="lbl">utilisation ${g.util}%</div><div class="bar"><i style="width:${g.util}%"></i></div></div>
-      <div><div class="lbl">memory ${fmtMB(g.mem_used)} / ${fmtMB(g.mem_total)}</div><div class="bar"><i class="mem" style="width:${100*g.mem_used/Math.max(1,g.mem_total)}%"></i></div></div>
-      <div class="num">${g.temp}°C</div></div>`).join('') || '<div class="muted">no GPU info</div>') + `</div>`;
-  html += `<h2>Processes</h2><div class="card">` + ((s.processes||[]).length ? '<table><tr><th>What</th><th>Up</th><th>Procs</th><th>CPU</th><th>RSS</th><th>PID</th></tr>' + s.processes.map(p => `<tr><td>${esc(p.name)}</td><td class="num">${esc(p.etime)}</td><td class="num">${p.n}</td><td class="num">${p.cpu.toFixed(0)}%</td><td class="num">${fmtMB(Math.round(p.rss_mb))}</td><td class="num">${p.pid}</td></tr>`).join('') + '</table>' : '<div class="muted">idle</div>') + `</div>`;
-  if (s.fleet_jobs && s.fleet_jobs.length) html += `<h2>Fleet jobs (~/rig-runs)</h2><div class="card"><table><tr><th>Job</th><th>State</th><th>Last line</th><th>Touched</th></tr>` + s.fleet_jobs.map(j => `<tr><td>${esc(j.job)}</td><td>${esc(j.state)}</td><td><pre>${esc(j.last)}</pre></td><td class="num">${ago(Date.now()/1000 - j.age_s)}</td></tr>`).join('') + `</table></div>`;
-  html += `<h2>Logs <label class="chk"><input type="checkbox" ${autoLog ? 'checked' : ''} onchange="autoLog=this.checked; scheduleLog()"> auto-refresh every 10 s</label></h2><div class="card"><div class="logs">` + (s.logs||[]).map(l => `<button class="${logSel === l.path ? 'sel' : ''}" onclick="showLog('${esc(l.path)}')" title="${esc(l.path)} · ${ago(l.mtime)} · ${fmtMB(Math.round(l.size/1024/1024*10)/10)}">${esc(l.name)}</button>`).join('') + `</div><div class="logbox" id="logbox"><span class="muted">${logSel ? 'loading…' : 'pick a log to tail it (last 80 lines)'}</span></div></div>`;
-  return html;
+function spark(k) {
+  const h = hist[k] || []; if (h.length < 2) return '<svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none"></svg>';
+  const W = 100, H = 30, x = i => (i / (HIST - 1)) * W, off = HIST - h.length, y = u => 2 + H - (u / 100) * H;
+  const pts = h.map((p, i) => [x(i + off), y(p.u)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none" data-k="${esc(k)}" aria-label="Utilization history">
+    <path class="area" d="${line} L${last[0]} ${H + 2} L${pts[0][0]} ${H + 2} Z"/><path class="ln" d="${line}" vector-effect="non-scaling-stroke"/>
+    <rect x="0" y="0" width="100" height="34" fill="transparent"/></svg>`;
+}
+
+function hostCard(n) {
+  const r = state.rigs[n], on = online(r), s = r && r.snapshot;
+  const running = (s?.fleet_jobs || []).filter(j => j.state === 'running');
+  const now = running.length ? `Running <b>${esc(running.map(j => j.job).join(', '))}</b>`
+            : (s?.processes || []).length ? `Busy: <b>${esc(s.processes[0].name)}</b>` : 'Idle';
+  const gpus = (s?.gpus || []).map(g => {
+    const mp = pct(g.mem_used, g.mem_total), hot = g.temp >= 83;
+    return `<div class="gpu"><div class="gpu-head"><b>GPU ${g.index}</b><span>${esc(g.name)}</span>
+        <span class="temp ${hot ? 'hot' : ''}">${hot ? '▲ ' : ''}${g.temp} °C</span></div>
+      <div class="row"><span class="k">Utilization</span><div class="meter"><i style="width:${g.util}%"></i></div><span class="v">${g.util} %</span></div>
+      <div class="row"><span class="k">Memory</span><div class="meter"><i class="${sev(mp)}" style="width:${mp}%"></i></div><span class="v">${gb(g.mem_used)} / ${gb(g.mem_total)} GB</span></div>
+      ${spark(n + ':' + g.index)}</div>`; }).join('');
+  return `<div class="host ${selected === n ? 'sel' : ''}" onclick="select('${esc(n)}')">
+    <div class="top"><span class="name">${esc(n)}</span>${r?.hub ? '<span class="hubtag">hub</span>' : ''}
+      ${on ? '<span class="pill ok"><span class="ic">●</span>Online</span>' : '<span class="pill off"><span class="ic">✕</span>Offline</span>'}</div>
+    <div class="meta">${s ? `load ${esc((s.load || []).slice(0, 1).join(''))} · disk free ${esc(s.disk_free)} · ${on ? 'updated ' + ago(r.fetched) : 'last seen ' + ago(r.last_online)}` : esc(r?.error || 'waiting for first poll')}</div>
+    ${gpus || '<div class="nogpu">No GPU reported</div>'}
+    <div class="now">${on ? now : 'Not reachable'}</div></div>`;
+}
+
+function stateCell(st) {
+  if (st === 'running') return '<span class="state run">● Running</span>';
+  if (st === 'exit 0') return '<span class="state ok">✓ Done</span>';
+  if (st && st.startsWith('exit')) return `<span class="state bad">✕ Failed (${esc(st.slice(5))})</span>`;
+  return `<span class="state">○ ${esc(st)}</span>`;
+}
+
+function renderJobs() {
+  const jobs = allJobs().sort((a, b) => (a.state === 'running' ? 0 : 1) - (b.state === 'running' ? 0 : 1) || a.age_s - b.age_s).slice(0, 12);
+  document.getElementById('jobs').innerHTML = jobs.length
+    ? `<table><tr><th>Job</th><th>Machine</th><th>State</th><th>Latest output</th><th style="text-align:right">Updated</th></tr>` +
+      jobs.map(j => `<tr><td><b>${esc(j.job)}</b></td><td>${esc(j.host)}</td><td>${stateCell(j.state)}</td><td><code>${esc(j.last)}</code></td><td class="num">${dur(j.age_s)} ago</td></tr>`).join('') + '</table>'
+    : '<div class="empty">No jobs yet. Start one with <code>rig run</code>.</div>';
+}
+
+function renderDetail() {
+  const el = document.getElementById('detail'); if (!selected) { el.innerHTML = ''; return; }
+  const r = state.rigs[selected], s = r && r.snapshot; if (!s) { el.innerHTML = ''; return; }
+  const procs = s.processes || [];
+  el.innerHTML = `<h2>${esc(selected)}: processes and logs</h2><div class="card">` +
+    (procs.length ? `<table><tr><th>Process</th><th style="text-align:right">Up</th><th style="text-align:right">CPU</th><th style="text-align:right">Memory</th></tr>` +
+      procs.map(p => `<tr><td>${esc(p.name)}${p.n > 1 ? ` <span style="color:var(--muted)">×${p.n}</span>` : ''}</td><td class="num">${esc(p.etime)}</td><td class="num">${Math.round(p.cpu)} %</td><td class="num">${gb(p.rss_mb)} GB</td></tr>`).join('') + '</table>'
+      : '<div class="empty">No fleet processes on this machine.</div>') +
+    `<div class="logs">${(s.logs || []).slice(0, 16).map(l => `<button class="${logSel === l.path ? 'sel' : ''}" onclick="showLog('${esc(l.path)}')">${esc(l.name.replace(/^rig-runs\//, '').replace(/\/stdout\.log$/, ''))}</button>`).join('') || '<span class="empty">No logs</span>'}</div>` +
+    (logSel ? `<div class="logbox" id="logbox"><pre>loading…</pre></div>` : '') + '</div>';
+  if (logSel) loadLog();
 }
 
 function render() {
   if (!state) return;
-  document.getElementById('meta').textContent = `last poll ${ago(state.last_poll)} · every ${state.poll_interval} s · ${state.hosts.length} rigs`;
-  renderSide();
-  const main = document.getElementById('main');
-  const y = main.scrollTop;
-  main.innerHTML = selected === null ? renderOverview() : renderRig(selected);
-  main.scrollTop = y;
-  if (selected !== null && logSel) loadLog();
+  recordHistory();
+  const fresh = state.last_poll && Date.now()/1000 - state.last_poll < 3 * state.poll_interval + 30;
+  document.getElementById('live').className = 'live' + (fresh ? '' : ' stale');
+  document.getElementById('livetxt').textContent = fresh ? `Live · updated ${ago(state.last_poll)}` : `Stale · last update ${ago(state.last_poll)}`;
+  document.getElementById('demo').innerHTML = state.demo ? '<span class="demo">Demo data</span>' : '';
+  renderTiles();
+  document.getElementById('hosts').innerHTML = hosts().map(hostCard).join('');
+  renderJobs();
+  renderDetail();
 }
 
-function select(n) { selected = n; logSel = null; clearTimeout(logTimer); render(); }
-async function showLog(path) { logSel = path; render(); }
+function select(n) { selected = selected === n ? null : n; logSel = null; clearTimeout(logTimer); render();
+  if (selected) setTimeout(() => document.getElementById('detail').scrollIntoView({behavior: 'smooth', block: 'start'}), 50); }
+function showLog(p) { logSel = p; renderDetail(); }
 async function loadLog() {
-  const box = document.getElementById('logbox'); if (!box || !logSel) return;
-  try {
-    const r = await fetch(`/api/log?rig=${encodeURIComponent(selected)}&path=${encodeURIComponent(logSel)}&n=80`);
-    const j = await r.json();
-    box.innerHTML = `<div class="muted" style="margin-bottom:6px">${esc(logSel)} · fetched ${ago(j.fetched)}</div><pre>${esc(j.text || j.error || '')}</pre>`;
-    box.scrollTop = box.scrollHeight;
-  } catch (e) { box.innerHTML = `<span class="err">${esc(e)}</span>`; }
-  scheduleLog();
+  clearTimeout(logTimer);
+  try { const j = await (await fetch(`/api/log?rig=${encodeURIComponent(selected)}&path=${encodeURIComponent(logSel)}&n=80`)).json();
+    const box = document.getElementById('logbox'); if (box) { box.innerHTML = `<pre>${esc(j.text || j.error || '')}</pre>`; box.scrollTop = box.scrollHeight; } }
+  catch (e) {}
+  logTimer = setTimeout(loadLog, 10000);
 }
-function scheduleLog() { clearTimeout(logTimer); if (autoLog && logSel) logTimer = setTimeout(loadLog, 10000); }
+
+// hover: utilization at the pointer on any sparkline
+const tip = document.getElementById('tip');
+document.addEventListener('mousemove', e => {
+  const svg = e.target.closest && e.target.closest('svg.spark'); if (!svg || !svg.dataset.k) { tip.style.opacity = 0; return; }
+  const h = hist[svg.dataset.k] || [], b = svg.getBoundingClientRect();
+  const i = Math.round(((e.clientX - b.left) / b.width) * (HIST - 1)) - (HIST - h.length);
+  const p = h[Math.max(0, Math.min(h.length - 1, i))]; if (!p) return;
+  tip.textContent = `${p.u} % utilization · ${ago(p.t)}`; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 30) + 'px'; tip.style.opacity = 1;
+});
 
 async function tick() {
-  try { const r = await fetch('/api/state'); state = await r.json(); render(); }
-  catch (e) { document.getElementById('meta').textContent = 'server unreachable: ' + e; }
+  try { state = await (await fetch('/api/state')).json(); render(); }
+  catch (e) { document.getElementById('live').className = 'live stale'; document.getElementById('livetxt').textContent = 'Server unreachable'; }
 }
-async function refreshNow() { await fetch('/api/refresh'); setTimeout(tick, 4000); setTimeout(tick, 12000); }
-tick(); setInterval(tick, 10000);
+async function refreshNow() { await fetch('/api/refresh'); setTimeout(tick, 3000); setTimeout(tick, 10000); }
+tick(); setInterval(tick, 5000);
 </script>
 </body>
 </html>
