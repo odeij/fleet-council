@@ -27,13 +27,14 @@ flowchart LR
         HUB["Hub · RTX 5090 32 GB<br/>telemetry cron · rig learn · experience store"]
         A["Host A · 2x RTX 2080 SUPER 8 GB"]
         B["Host B · RTX 2080 Ti 11 GB"]
-        N["Host N · any NVIDIA GPU<br/>+1 line in hosts.conf"]
+        C["rig4090 · RTX 4090 24 GB<br/>joining next: +1 line in hosts.conf"]
+        N["Host N · any NVIDIA GPU"]
     end
     AC -->|same question, in parallel| CX & CL
     CX & CL -->|independent answers| CC
-    FS -->|rig run / rig dispatch| HUB & A & B & N
+    FS -->|rig run / rig dispatch| HUB & A & B & C & N
     HUB -->|rig learn: model.json + LESSONS.md| FS
-    GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & N
+    GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & C & N
 ```
 
 ## Why
@@ -65,7 +66,8 @@ There is no fixed cluster size anywhere in the code. `hosts.conf` is the whole t
 hub           local       0
 gpu-box-a     gpu-box-a   0,1
 gpu-box-b     gpu-box-b   0
-gpu-box-c     gpu-box-c   0,1,2,3      # a new 4-GPU box: one line, then `rig setup gpu-box-c && rig env-sync gpu-box-c`
+rig4090       rig4090     0            # next to join (RTX 4090): one line, then `rig setup rig4090 && rig env-sync rig4090`
+gpu-box-c     gpu-box-c   0,1,2,3      # any further box, same way
 ```
 
 - `rig` fans every command out to all hosts in parallel; `all` always means "whatever is in hosts.conf now".

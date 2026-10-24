@@ -4,4 +4,5 @@
 hub           local       0
 gpu-box-a     gpu-box-a   0,1
 gpu-box-b     gpu-box-b   0
+# rig4090     rig4090     0        # RTX 4090, next to join
 # gpu-box-c   gpu-box-c   0,1,2,3
