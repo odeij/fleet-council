@@ -1,16 +1,18 @@
 # fleet-council
 
-**One AI brain, many GPUs, several models.** A harness that lets a single Claude Code session drive a heterogeneous
-GPU cluster over Tailscale, learn how that cluster actually behaves, and pull other frontier models into a council
-when a problem is hard.
+**One AI brain, any number of GPUs, several models.** A harness that lets a single Claude Code session on a MacBook
+command a heterogeneous Linux GPU cluster over Tailscale, learn how that cluster actually behaves, and pull other
+frontier models into a council when a problem is hard.
 
+- **Cross-OS by design:** macOS controller, Linux GPU workers, mixed GPU generations (Blackwell + Turing), one CLI.
+- **Scales by config, not code:** every GPU in `hosts.conf` becomes a scheduling lane. Adding a machine is one line.
 - No AnyDesk, no remote desktops, no second Claude session per machine: one agent, one context, every GPU.
 - A learned list scheduler that predicts each task on each GPU and gets better after every run.
 - A council where Claude and OpenAI's Codex answer independently and Claude chairs the synthesis.
 
 ```mermaid
 flowchart LR
-    subgraph Brain["Controller: one Claude Code session"]
+    subgraph Brain["MacBook (macOS) · one Claude Code session"]
         CC["Claude Code<br/>(orchestrator + chairman)"]
         FS["fleet skill"]
         AC["agent-council skill"]
@@ -21,16 +23,17 @@ flowchart LR
         CX["Codex CLI · GPT"]
         CL["claude -p"]
     end
-    subgraph Tailnet["Tailscale tailnet · ssh only"]
+    subgraph Tailnet["Linux GPU hosts · Tailscale tailnet · ssh only"]
         HUB["Hub · RTX 5090 32 GB<br/>telemetry cron · rig learn · experience store"]
         A["Host A · 2x RTX 2080 SUPER 8 GB"]
         B["Host B · RTX 2080 Ti 11 GB"]
+        N["Host N · any NVIDIA GPU<br/>+1 line in hosts.conf"]
     end
     AC -->|same question, in parallel| CX & CL
     CX & CL -->|independent answers| CC
-    FS -->|rig run / rig dispatch| HUB & A & B
+    FS -->|rig run / rig dispatch| HUB & A & B & N
     HUB -->|rig learn: model.json + LESSONS.md| FS
-    GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B
+    GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & N
 ```
 
 ## Why
@@ -53,9 +56,30 @@ writes down what it learned so the next plan is better.
 | [`skills/fleet`](skills/fleet/SKILL.md) | The Claude Code skill that teaches the agent the protocol: read experience → plan → run → learn. |
 | [`skills/agent-council`](skills/agent-council/) | My council setup on top of the open-source agent-council skill. |
 
+## Scaling out
+
+There is no fixed cluster size anywhere in the code. `hosts.conf` is the whole topology:
+
+```
+# name        ssh-alias   gpu indices
+hub           local       0
+gpu-box-a     gpu-box-a   0,1
+gpu-box-b     gpu-box-b   0
+gpu-box-c     gpu-box-c   0,1,2,3      # a new 4-GPU box: one line, then `rig setup gpu-box-c && rig env-sync gpu-box-c`
+```
+
+- `rig` fans every command out to all hosts in parallel; `all` always means "whatever is in hosts.conf now".
+- `dispatch.py` builds one lane per listed GPU, probes live free memory on each, and plans across all of them.
+  A host that doesn't answer is simply dropped from the plan; a lane that keeps failing retires itself mid-run.
+- A new GPU has no history, so its first run is calibrated online; after `rig learn` it has its own fitted model.
+- The sampler, learner and dashboard read the same file, so a new host shows up in telemetry and the GUI by itself.
+- The real limit is bandwidth, not lanes: remote GPUs share the hub's uplink, so staging data on the workers
+  (`rig push`) or shipping compact inputs is what keeps a large fleet busy. The scheduler models this per lane.
+
 ## Measured on the reference fleet
 
-1x RTX 5090 (shared desktop, Blackwell) + 2x RTX 2080 SUPER + 1x RTX 2080 Ti (Turing), one tailnet, 1 GbE uplink on the hub.
+Controlled from a MacBook (macOS). Workers: 1x RTX 5090 (shared desktop, Blackwell) + 2x RTX 2080 SUPER + 1x RTX 2080 Ti
+(Turing), all Linux, one tailnet, 1 GbE uplink on the hub.
 
 - **1.5 billion-point city LiDAR cloud**: ground extraction across all 4 GPUs in about 10 minutes.
 - **2.2x** over the 5090 alone on compute-heavy tiles with compact inputs; **1.5x** on I/O-bound point clouds, where the
@@ -88,6 +112,12 @@ Full walkthrough (Tailscale, ssh keys, cron, scheduler demo, dashboard, skills):
   wrong lessons retired, not deleted). The agent reads both before it plans.
 - **Shared GPUs are respected.** Caps come from live free memory minus a reserve; other users' processes are counted, never touched.
 - **The dashboard can't run commands.** It only tails log files that each host's collector lists.
+
+## No API keys
+
+Nothing here calls a model API. Claude Code, the Codex CLI and `claude -p` run on the subscriptions you are already
+logged into, and the fleet itself is plain ssh. The repo contains no credentials, and `.gitignore` keeps host lists,
+telemetry and results out of git.
 
 ## Credits
 

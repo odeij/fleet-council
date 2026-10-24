@@ -8,3 +8,7 @@ fleet/experience/model.json
 fleet/experience/EXPERIENCE.md
 fleet/hosts.conf
 fleet/controller.conf
+.env
+*.pem
+*.key
+auth_token

@@ -1,5 +1,7 @@
 # name        ssh-alias   gpu indices (one dispatch lane per GPU; default 0)
 # On the hub, the hub itself is "local". On a controller (laptop), every host is remote: use its ssh alias.
+# Add as many hosts as you have: each row is picked up by rig, dispatch, the sampler and the GUI.
 hub           local       0
 gpu-box-a     gpu-box-a   0,1
 gpu-box-b     gpu-box-b   0
+# gpu-box-c   gpu-box-c   0,1,2,3
