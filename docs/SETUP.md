@@ -35,7 +35,7 @@ Each host also needs `tmux`, `rsync` and an NVIDIA driver.
 On the hub:
 
 ```bash
-git clone https://github.com/<you>/fleet-council && cd fleet-council
+git clone https://github.com/odeij/fleet-council && cd fleet-council
 ./install.sh hub
 export PATH="$HOME/fleet/bin:$PATH"           # add to ~/.bashrc
 $EDITOR ~/fleet/hosts.conf                     # hub = local; one row per GPU host with its GPU indices

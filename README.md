@@ -71,7 +71,7 @@ These come from the fleet's own logs (`rig learn`), written up in [LESSONS.md](f
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/fleet-council && cd fleet-council
+git clone https://github.com/odeij/fleet-council && cd fleet-council
 ./install.sh hub                       # or: ./install.sh controller  (on the laptop)
 $EDITOR ~/fleet/hosts.conf             # name  ssh-alias  gpu-indices
 rig setup all && rig env-sync all && rig wait all envsync && rig hosts
