@@ -65,7 +65,9 @@
   .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 2px 8px;
           border-radius: 999px; border: 1px solid var(--line); color: var(--text-2); margin-left: auto; white-space: nowrap; }
   .pill.ok { color: var(--good-text); } .pill.off { color: var(--critical-text); }
-  .pill .ic { font-size: 10px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+  .dot.hollow { background: transparent; border: 1.5px solid currentColor; }
+  .dot.square { border-radius: 2px; }
   .hubtag { font-size: 11px; font-weight: 600; color: var(--accent-strong); background: var(--track); padding: 1px 7px; border-radius: 999px; }
 
   .gpu { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -119,8 +121,8 @@
     <span class="live" id="live"><i></i><span id="livetxt">connecting…</span></span>
     <span id="demo"></span>
     <span class="spacer"></span>
-    <button class="ghost" onclick="toggleTheme()" aria-label="Toggle light or dark theme">◐ Theme</button>
-    <button class="ghost" onclick="refreshNow()">↻ Refresh</button>
+    <button class="ghost" onclick="toggleTheme()" aria-label="Toggle light or dark theme">Theme</button>
+    <button class="ghost" onclick="refreshNow()">Refresh</button>
   </header>
 
   <section class="tiles" id="tiles"></section>
@@ -196,23 +198,23 @@ function hostCard(n) {
   const gpus = (s?.gpus || []).map(g => {
     const mp = pct(g.mem_used, g.mem_total), hot = g.temp >= 83;
     return `<div class="gpu"><div class="gpu-head"><b>GPU ${g.index}</b><span>${esc(g.name)}</span>
-        <span class="temp ${hot ? 'hot' : ''}">${hot ? '▲ ' : ''}${g.temp} °C</span></div>
+        <span class="temp ${hot ? 'hot' : ''}">${g.temp} °C${hot ? ' hot' : ''}</span></div>
       <div class="row"><span class="k">Utilization</span><div class="meter"><i style="width:${g.util}%"></i></div><span class="v">${g.util} %</span></div>
       <div class="row"><span class="k">Memory</span><div class="meter"><i class="${sev(mp)}" style="width:${mp}%"></i></div><span class="v">${gb(g.mem_used)} / ${gb(g.mem_total)} GB</span></div>
       ${spark(n + ':' + g.index)}</div>`; }).join('');
   return `<div class="host ${selected === n ? 'sel' : ''}" onclick="select('${esc(n)}')">
     <div class="top"><span class="name">${esc(n)}</span>${r?.hub ? '<span class="hubtag">hub</span>' : ''}
-      ${on ? '<span class="pill ok"><span class="ic">●</span>Online</span>' : '<span class="pill off"><span class="ic">✕</span>Offline</span>'}</div>
+      ${on ? '<span class="pill ok"><span class="dot"></span>Online</span>' : '<span class="pill off"><span class="dot hollow"></span>Offline</span>'}</div>
     <div class="meta">${s ? `load ${esc((s.load || []).slice(0, 1).join(''))} · disk free ${esc(s.disk_free)} · ${on ? 'updated ' + ago(r.fetched) : 'last seen ' + ago(r.last_online)}` : esc(r?.error || 'waiting for first poll')}</div>
     ${gpus || '<div class="nogpu">No GPU reported</div>'}
     <div class="now">${on ? now : 'Not reachable'}</div></div>`;
 }
 
 function stateCell(st) {
-  if (st === 'running') return '<span class="state run">● Running</span>';
-  if (st === 'exit 0') return '<span class="state ok">✓ Done</span>';
-  if (st && st.startsWith('exit')) return `<span class="state bad">✕ Failed (${esc(st.slice(5))})</span>`;
-  return `<span class="state">○ ${esc(st)}</span>`;
+  if (st === 'running') return '<span class="state run"><span class="dot"></span>Running</span>';
+  if (st === 'exit 0') return '<span class="state ok"><span class="dot"></span>Done</span>';
+  if (st && st.startsWith('exit')) return `<span class="state bad"><span class="dot square"></span>Failed (${esc(st.slice(5))})</span>`;
+  return `<span class="state"><span class="dot hollow"></span>${esc(st)}</span>`;
 }
 
 function renderJobs() {

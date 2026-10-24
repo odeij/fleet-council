@@ -6,17 +6,14 @@ council:
       # OpenAI Codex CLI, pinned to a specific model. Behind a TLS-inspecting proxy, prefix with
       # env SSL_CERT_FILE=/path/to/ca-bundle.pem
       command: "codex exec --skip-git-repo-check -m <model>"
-      emoji: "🤖"
       color: "BLUE"
 
     - name: claude
       command: "claude -p"
-      emoji: "🧠"
       color: "CYAN"
 
     # - name: gemini
     #   command: "gemini"
-    #   emoji: "💎"
     #   color: "GREEN"
 
   chairman:
