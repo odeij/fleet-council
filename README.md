@@ -38,6 +38,8 @@ flowchart LR
     GUI["Fleet GUI :8787"] -.->|read-only ssh poll| HUB & A & B & C & S & N
 ```
 
+![Fleet dashboard (demo mode)](docs/dashboard.png)
+
 ## Why
 
 I had four consumer GPUs of two generations in three machines. The usual options were bad: remote-desktop into each box
