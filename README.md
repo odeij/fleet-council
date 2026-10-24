@@ -60,6 +60,20 @@ writes down what it learned so the next plan is better.
 | [`skills/fleet`](skills/fleet/SKILL.md) | The Claude Code skill that teaches the agent the protocol: read experience → plan → run → learn. |
 | [`skills/agent-council`](skills/agent-council/) | My council setup on top of the open-source agent-council skill. |
 
+## It adapts to its own hardware
+
+Nobody tells the fleet how fast each GPU is or how good the network is. It learns that by running work, in three loops:
+
+1. **In-run (seconds):** every task is predicted on every GPU and the queue is re-planned whenever a GPU frees up.
+   Predictions are calibrated live from actual/predicted ratios, an out-of-memory error cuts that GPU's cap on the spot,
+   and failed tasks move to another GPU while a GPU that keeps failing retires itself.
+2. **Model (nightly):** every task, job, per-minute GPU sample and network probe feeds recency-weighted fits
+   (14-day half-life): per-GPU timing, real link sharing, memory per unit, reliability, free VRAM by hour of day.
+3. **Lessons (after each run):** the agent compares prediction against reality and writes, corrects or retires lessons
+   with evidence and confidence, then reads them before it plans the next job.
+
+Full mechanics and real examples: **[docs/ADAPTATION.md](docs/ADAPTATION.md)**.
+
 ## Scaling out
 
 There is no fixed cluster size anywhere in the code. `hosts.conf` is the whole topology:
